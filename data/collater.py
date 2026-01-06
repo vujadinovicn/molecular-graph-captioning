@@ -22,6 +22,14 @@ class GraphormerMolecularCaptioningCollator:
         graph_batch = self.collator(graph_items)
         graph_batch["id"] = [item["id"] for item in batch]
 
+        # handle node padding
+        ############################ TODO
+        attn_bias = graph_batch["attn_bias"]
+        node_mask = torch.isfinite(attn_bias[:, 0, :])
+        node_mask[:, 0] = False
+        graph_batch["node_mask"] = torch.isfinite(attn_bias[:, 0, :])
+        ############################
+
         text_batch = build_text_batch(batch, self.text_pad_token_id, self.mode)
         graph_batch.update(text_batch)
 
@@ -69,6 +77,7 @@ def build_text_batch(batch, text_pad_token_id, mode):
         padding_side="left"
     )
 
+    # TODO: Kshitij
     if mode == "test":
         return {
             "input_ids": pad_prompt_input_ids, 

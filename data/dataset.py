@@ -50,7 +50,7 @@ class MolecularCaptioningDataset(Dataset):
 
     def build_and_tokenize_chat_prompt(self, graph):
         # TODO: Write the system message and change user message's placeholder_token
-        system_message = "Captio the molecule."
+        system_message = "Caption the molecule."
         placeholder_token: str = '<|reserved_special_token_1|>'
         num_nodes = graph.num_nodes # we can change this
         user_message = ("Molecule graph embeddings: " + placeholder_token * (num_nodes + 2))

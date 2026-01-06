@@ -18,15 +18,3 @@ class GraphormerEncoder(nn.Module):
         out = self.model(**batch)
         emb = out.last_hidden_state
         return emb
-
-# lora_config = LoraConfig(
-#             r = 32,
-#             lora_alpha = 64,
-#             target_modules = [
-#             "q_proj", "k_proj", "v_proj", "out_proj",   # attention projections
-#             "fc1", "fc2"     # MLP projections;
-#             ],
-#             lora_dropout = 0.05,
-#             bias = "none",
-#             task_type = TaskType.FEATURE_EXTRACTION
-#         )

@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from transformers import AutoModelForCausalLM
 
+# TODO: Kshitij. Edit
 class LLMDecoder(nn.Module):
     def __init__(self, model_name, device_map="auto"):
         super().__init__()
