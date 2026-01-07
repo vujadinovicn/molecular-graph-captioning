@@ -1,8 +1,6 @@
 import pickle
-import torch
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset
 import torch.utils.data
-from transformers.models.graphormer.collating_graphormer import preprocess_item
 import os
 
 class MolecularCaptioningDataset(Dataset):
@@ -12,14 +10,12 @@ class MolecularCaptioningDataset(Dataset):
             split="train",
             description_tokenizer=None, 
             max_description_length=512, 
-            use_graphormer=True,
             **kwargs
     ):
         self.graphs_path = graphs_path
         self.description_tokenizer = description_tokenizer
         self.max_description_length = max_description_length
         self.split = split
-        self.use_graphormer = use_graphormer
 
         self.load_graphs()
 
@@ -35,18 +31,11 @@ class MolecularCaptioningDataset(Dataset):
 
         chat = self.build_and_tokenize_chat_prompt(graph)
         description = self.tokenize_description(graph)
-
-        if self.use_graphormer:
-            graph_item = self.pyg_to_graphormer_item(graph)
-            graph_item['id'] = graph.id
-            graph_item.update(chat)
-            graph_item.update(description)
-            return graph_item
-        else:
-            graph.id = graph.id
-            graph.prompt_input_ids = chat["prompt_input_ids"]
-            graph.description_input_ids = description["description_input_ids"]
-            return graph
+        
+        graph.id = graph.id
+        graph.prompt_input_ids = chat["prompt_input_ids"]
+        graph.description_input_ids = description["description_input_ids"]
+        return graph
 
     def build_and_tokenize_chat_prompt(self, graph):
         # TODO: Write the system message and change user message's placeholder_token
@@ -94,23 +83,13 @@ class MolecularCaptioningDataset(Dataset):
         )["input_ids"]
 
         return {"description_input_ids": description_ids}
+    
 
-    def pyg_to_graphormer_item(self, graph):
-        """
-        Convert a PyTorch Geometric Data object to Graphormer input format
-        and run Graphormer preprocessing.
-        """
-        node_feat = graph.x.to(torch.long)
-        edge_feat = graph.edge_attr.to(torch.long)
-        edge_index = graph.edge_index.to(torch.long)
 
-        item = {
-            "edge_index": edge_index,
-            "node_feat": node_feat,
-            "edge_feat": edge_feat,
-            "num_nodes": graph.num_nodes,
-            "y": torch.tensor(0)
-        }
-
-        item = preprocess_item(item)
-        return item
+def get_dataset(graphs_path, split, tokenizer, max_description_length):
+    return MolecularCaptioningDataset(
+        graphs_path=graphs_path,
+        split=split,
+        description_tokenizer=tokenizer,
+        max_description_length=max_description_length
+    )

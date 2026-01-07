@@ -3,38 +3,6 @@ import torch.utils.data
 import torch_geometric
 import torch_geometric.data
 import torch_geometric.loader.dataloader
-from transformers.models.graphormer.collating_graphormer import GraphormerDataCollator
-
-class GraphormerMolecularCaptioningCollator: 
-    def __init__(self, tokenizer, mode="train", **kwargs):
-        self.collator = GraphormerDataCollator()
-        self.tokenizer = tokenizer
-        self.mode = mode
-        self.text_pad_token_id = tokenizer.pad_token_id
-
-    def __call__(self, batch):
-        graph_items = []
-        for item in batch:
-            graph_item = {k: v for k, v in item.items()
-                          if k not in ["prompt_input_ids", "description_input_ids", "id"]}
-            graph_items.append(graph_item)
-
-        graph_batch = self.collator(graph_items)
-        graph_batch["id"] = [item["id"] for item in batch]
-
-        # handle node padding
-        ############################ TODO
-        attn_bias = graph_batch["attn_bias"]
-        node_mask = torch.isfinite(attn_bias[:, 0, :])
-        node_mask[:, 0] = False
-        graph_batch["node_mask"] = torch.isfinite(attn_bias[:, 0, :])
-        ############################
-
-        text_batch = build_text_batch(batch, self.text_pad_token_id, self.mode)
-        graph_batch.update(text_batch)
-
-        return graph_batch
-    
 
 class PyGMolecularCaptioningCollator(torch_geometric.loader.dataloader.Collater):  
     def __init__(self, dataset, tokenizer, mode="train", **kwargs):
