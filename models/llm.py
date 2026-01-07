@@ -1,7 +1,9 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from transformers import AutoModelForCausalLM
+# from transformers import AutoModelForCausalLM
+from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+
 
 # TODO: Kshitij. Edit
 class LLMDecoder(nn.Module):
@@ -10,7 +12,8 @@ class LLMDecoder(nn.Module):
         self.model = AutoModelForCausalLM.from_pretrained(
             model_name,
             torch_dtype=torch.float16,
-            device_map=device_map
+            device_map=device_map,
+            trust_remote_code=True
         )
 
     def forward(self, **kwargs):

@@ -5,16 +5,16 @@ from models.readout import readout_embeddings
 
 class MolecularCaptioningModel(nn.Module):
     def __init__(self, graph_encoder, modality_adapter, llm):
-            super().__init__()
-            self.graph_encoder = graph_encoder
-            self.modality_adapter = modality_adapter
-            self.llm = llm
+        super().__init__()
+        self.graph_encoder = graph_encoder
+        self.modality_adapter = modality_adapter
+        self.llm = llm
 
     def get_graph_embeddings(self, graph_batch, readout_fn, normalize=True):
-        graph_tokens = self.graph_encoder(graph_batch)
-        proj_tokens = self.modality_adapter(graph_tokens)
+        node_embs, node_mask, _ = self.graph_encoder(graph_batch)
+        proj_tokens = self.modality_adapter(node_embs)
 
-        embeddings = readout_embeddings(proj_tokens, graph_batch["node_mask"], readout_fn)
+        embeddings = readout_embeddings(proj_tokens, node_mask, readout_fn)
 
         if normalize:
             embeddings = F.normalize(embeddings, p=2, dim=-1)
@@ -40,29 +40,25 @@ class MolecularCaptioningModel(nn.Module):
 
     def forward_contrastive(
             self, 
-            graph_batch, 
-            description_input_ids, 
-            description_attention_mask, 
-            graph_mask, 
-            text_layer, 
-            readout_fn
+            batch, 
+            text_layer=16, 
+            readout_fn="mix"
         ):
         graph_emb = self.get_graph_embeddings(
-            graph_batch=graph_batch,
-            graph_mask=graph_mask,
+            graph_batch=batch,
             readout_fn=readout_fn,
             normalize=True
         )
 
         text_emb = self.get_description_embeddings(
-            input_ids=description_input_ids,
-            attention_mask=description_attention_mask,
+            input_ids=batch.description_input_ids,
+            attention_mask=batch.description_attention_mask,
             output_layer=text_layer,
             readout_fn=readout_fn,
             normalize=True
         )
 
-        return {"graph_emb": graph_emb, "text_emb": text_emb}
+        return graph_emb, text_emb
 
     def forward_instruct(**kwargs):
         # TODO

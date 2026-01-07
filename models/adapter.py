@@ -1,10 +1,10 @@
 import torch.nn as nn
 
 class ModalityAdapter(nn.Module):
-    def __init__(self, graph_dim, intermediate_dim, llm_dim, dropout=0.1):
+    def __init__(self, graph_dim, hidden_dim, llm_dim, dropout=0.1):
         super().__init__()
-        self.fc1 = nn.Linear(graph_dim, intermediate_dim)
-        self.fc2 = nn.Linear(intermediate_dim, llm_dim)
+        self.fc1 = nn.Linear(graph_dim, hidden_dim)
+        self.fc2 = nn.Linear(hidden_dim, llm_dim)
         self.activation = nn.GELU()
         self.dropout = nn.Dropout(p=dropout)
 
