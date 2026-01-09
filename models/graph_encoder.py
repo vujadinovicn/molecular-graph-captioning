@@ -40,12 +40,6 @@ class GINEEncoder(nn.Module):
         self.atom_encoder = AtomBondEncoder(atom_num_embeddings_list, hidden_dim)
         self.bond_encoder = AtomBondEncoder(bond_num_embeddings_list, hidden_dim)
 
-        self.atom_mlp = nn.Sequential(
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, hidden_dim),
-        )
-
         self.convs = nn.ModuleList()
         self.norms = nn.ModuleList()
 
@@ -57,7 +51,7 @@ class GINEEncoder(nn.Module):
             )
             conv = GINEConv(nn=mlp, train_eps=True)
             self.convs.append(conv)
-            self.norms.append(nn.LayerNorm(hidden_dim))
+            self.norms.append(nn.BatchNorm1d(hidden_dim))
 
         self.proj = nn.Sequential(
             nn.Linear(hidden_dim, hidden_dim),
@@ -69,15 +63,15 @@ class GINEEncoder(nn.Module):
         x = self.atom_encoder(data.x)
         e = self.bond_encoder(data.edge_attr)
 
-        x = self.atom_mlp(x) # to mix features
-
-        for conv, norm in zip(self.convs, self.norms):
-            x_res = x
+        # for conv, norm in zip(self.convs, self.norms):
+        for layer in range(self.num_layers):
+            conv, norm = self.convs[layer], self.norms[layer]
             x = conv(x, data.edge_index, e)
             x = norm(x)
-            x = F.relu(x)
-            x = F.dropout(x, p=self.dropout, training=self.training)
-            x += x_res  # residual connection
+            if layer == self.num_layers - 1:
+                x = F.dropout(x, p=self.dropout, training=self.training)
+            else:
+                x = F.dropout(F.relu(x), p=self.dropout, training=self.training)
 
         if self.pooling == "mean":
             g = global_mean_pool(x, data.batch)

@@ -1,6 +1,11 @@
 data:
   graphs_path: 'C:\mva_first_semester\ALTEGRAD\molecular-graph-captioning\data\graphs'
+  graph_features: '/home/shishirk/adityasr/kshitij_molecular_captioning/multimodal-prompt-tuning/extracted_features/test_features_dict.pkl'
   max_description_length: 512
+
+models:
+ llm_name: 'meta-llama/Llama-3.2-1B-Instruct'
+ checkpoint_path: '/home/shishirk/adityasr/kshitij_molecular_captioning/multimodal-prompt-tuning/saved_model/train/full_ft_molecule_llama3_1B_peft_epoch_4.pth'
 
 train_contrastive:
   batch_size: 64
@@ -11,6 +16,12 @@ train_contrastive:
   lr: 1e-4
   temperature: 0.3
   accum_steps: 8
+
+train_instruct:
+  batch_size: 64
+
+generation: 
+  batch_size: 1
 
 train_instruct:
   dummy: 0

@@ -3,7 +3,7 @@ from models.graph_encoder import GINEEncoder
 from models.adapter import ModalityAdapter
 from models.model import MolecularCaptioningModel
 from data.utils import get_num_embeddings_list
-
+from transformers import AutoTokenizer
 
 def get_graph_encoder(config, device):
     graph_hidden_dim = config['train_contrastive'].get('graph_hidden_dim', 256)
@@ -34,20 +34,28 @@ def get_modality_adapter(config, device):
 
     return model
 
+def get_llm(config):
+    tokenizer = AutoTokenizer.from_pretrained(config['models']['llm_name'])
+    tokenizer.pad_token = tokenizer.eos_token 
+    tokenizer.add_tokens(["<|reserved_special_token_1|>"], special_tokens=True)
+    
+    llm_model = LLMDecoder(model_name=config['models']['llm_name'])
+    llm_model.resize_token_embeddings(len(tokenizer))
+
+    return llm_model, tokenizer
+
 def get_molecular_captioning_model(config, device):
     graph_encoder = get_graph_encoder(config, device)
-    modality_adapter = get_modality_adapter(config, device)
-    # TODO: Kshitij. Model the class in llm.py and load it here accordingly
-    llama_decoder = LLMDecoder(model_name="TinyLlama/TinyLlama-1.1B-Chat-v1.0")
-    # llama_decoder = LLMDecoder(model_name="Qwen/Qwen2.5-0.5B-Instruct")
-    
+    # modality_adapter = get_modality_adapter(config, device)
+    llm_model, tokenizer = get_llm(config)
+
     model = MolecularCaptioningModel(
         graph_encoder=graph_encoder,
-        modality_adapter=modality_adapter,
-        llm=llama_decoder,
+        llm_model=llm_model,
+        tokenizer=tokenizer,
+        node_dim=256,         
+        global_feat_1_dim=20,
+        global_feat_2_dim=1024 
     ).to(device)
 
-    # TODO: Load
-    model.llama_decoder.requires_grad_(False)
-
-    return model
+    return model, tokenizer
