@@ -25,7 +25,7 @@ class GINEEncoder(nn.Module):
         atom_num_embeddings_list,
         bond_num_embeddings_list,
         hidden_dim=256,
-        out_dim=256,
+        out_dim=512,
         num_layers=5,
         dropout=0.1,
         pooling="mean",  # "mean" or "add"

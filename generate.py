@@ -257,9 +257,9 @@ if __name__ == "__main__":
     main()
 
 '''
-python run_inference.py \
-  --main_ckpt_path "/path/to/model/ft_freeze_graph_llama_1B_epoch_4.pth" \
-  --graph_ckpt_path "/path/to/model/contrast_mix_24.pth" \
-  --data_path "/path/to/data_baseline/data" \
+python /home/shishirk/adityasr/kshitij_molecular_captioning/molecular-graph-captioning/generate.py \
+  --main_ckpt_path "/home/shishirk/adityasr/kshitij_molecular_captioning/multimodal-prompt-tuning/saved_model/CURRENT_train_1b_instr_nem_grafr/ft_freeze_graph_llama_1B_epoch_4.pth" \
+  --graph_ckpt_path "/home/shishirk/adityasr/kshitij_molecular_captioning/nemanja_saved_model/contrast_mix_24.pth" \
+  --data_path "/home/shishirk/adityasr/kshitij_molecular_captioning/data_baseline/data" \
   --output_file "results.json"
 '''
