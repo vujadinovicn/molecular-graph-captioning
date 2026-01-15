@@ -44,7 +44,10 @@ def full_eval(model, val_loader, temperature=0.15, device="cuda"):
 
     all_graph_embs, all_text_embs = [], []
     for batch in val_loader:
-        batch = batch.to(device)
+        batch["graph_batch"] = batch["graph_batch"].to(device)
+        batch["description_input_ids"] = batch["description_input_ids"].to(device)
+        batch["description_attention_mask"] = batch["description_attention_mask"].to(device)
+
         graph_emb, text_emb = model.forward_contrastive(batch, readout_fn="mean")
         all_graph_embs.append(graph_emb.float())
         all_text_embs.append(text_emb.float())
@@ -208,9 +211,10 @@ if __name__ == "__main__":
         
         # Save if best mrr at end of epoch
         metrics = full_eval(model, val_loader, temperature=loss_fn.temperature, device=device)
-        print(f"Validation Epoch {epoch} | MRR={metrics['mrr']:.4f} | g2t={metrics['g2t']} | t2g={metrics['t2g']}")
-        if metrics["mrr"] > best_mrr:
-            best_mrr = metrics["mrr"]
+        combined_mrr = 0.5*(metrics['t2g']['MRR']+metrics['g2t']['MRR'])
+        print(f"Validation Epoch {epoch} | MRR={combined_mrr:.4f} | g2t={metrics['g2t']} | t2g={metrics['t2g']}")
+        if combined_mrr > best_mrr:
+            best_mrr = combined_mrr
             best_path = os.path.join(args.save_dir, "best_mrr.pth")
             save_contrastive_model_checkpoint(model, best_path)
             print(f"Saved best MRR checkpoint!")
