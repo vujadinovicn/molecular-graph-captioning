@@ -59,7 +59,7 @@ if __name__ == "__main__":
 
     dataset = MolecularCaptioningDataset(
         graphs_path=args.graphs_path,
-        split="validation",
+        split="train",
         tokenizer=tokenizer,
     )
     
@@ -96,9 +96,9 @@ if __name__ == "__main__":
 
     # Loading from Checkpoint
     print(f"Loading checkpoint from: {args.load_checkpoint_path}")
-    # ckpt = torch.load(args.load_checkpoint_path, map_location="cuda")
-    # model.graph_encoder.load_state_dict(ckpt["graph_encoder"])
-    # model.node_projector.load_state_dict(ckpt["node_projector"])
+    ckpt = torch.load(args.load_checkpoint_path, map_location="cuda")
+    model.graph_encoder.load_state_dict(ckpt["graph_encoder"])
+    model.node_projector.load_state_dict(ckpt["node_projector"])
 
     # Freeze graph encoder
     for param in model.graph_encoder.parameters():

@@ -189,14 +189,12 @@ if __name__ == "__main__":
             
             optimizer.zero_grad()
 
-            print("here")
-            
-            # graph_embs, text_embs = model.forward_contrastive(batch, readout_fn="mix")
-            # loss = loss_fn(graph_embs, text_embs)
-            # loss_over_batches += loss.item()
+            graph_embs, text_embs = model.forward_contrastive(batch, readout_fn="mix")
+            loss = loss_fn(graph_embs, text_embs)
+            loss_over_batches += loss.item()
 
-            # loss.backward()
-            # optimizer.step()
+            loss.backward()
+            optimizer.step()
 
             loss = torch.tensor(0.0)  # Placeholder to avoid errors
             
