@@ -9,7 +9,9 @@ from data.dataset import MolecularCaptioningDataset
 from models.model import MolecularCaptioningModel
 from models.graph_encoder import GINEEncoder
 from data.utils import get_num_embeddings_list
-from models.utils import save_model_checkpoint
+from models.utils import save_model_checkpoint, print_trainable_parameters
+from peft import LoraConfig, get_peft_model, TaskType, prepare_model_for_kbit_training
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Train Molecular Captioning Model (Graph + Llama)")
@@ -32,6 +34,13 @@ def parse_args():
     parser.add_argument("--llm_lr", type=float, default=5e-5, help="Learning rate for LoRA/LLM parameters")
     parser.add_argument("--projector_lr", type=float, default=1e-3, help="Learning rate for Projector parameters")
     
+    # --- PEFT / LoRA Arguments ---
+    parser.add_argument("--use_peft", action="store_true", help="Enable PEFT (LoRA) training")
+    parser.add_argument("--lora_r", type=int, default=16, help="LoRA attention dimension (rank)")
+    parser.add_argument("--lora_alpha", type=int, default=32, help="LoRA alpha scaling parameter")
+    parser.add_argument("--lora_dropout", type=float, default=0.05, help="LoRA dropout probability")
+    parser.add_argument("--lora_bias", type=str, default="none", help="Bias type for LoRA (none, all, lora_only)")
+
     # Logging & Saving Intervals
     parser.add_argument("--log_interval", type=int, default=100, help="Print loss every N steps")
     parser.add_argument("--checkpoint_interval", type=int, default=500, help="Save mid-epoch checkpoint every N steps")
@@ -87,6 +96,29 @@ if __name__ == "__main__":
     )
     base_llm.resize_token_embeddings(len(tokenizer))
 
+    if args.use_peft:
+        print("Enabling PEFT (LoRA)...")
+        # Define modules to target. For Llama 3, targeting all linear layers usually gives best results.
+        target_modules = ["q_proj", "k_proj", "v_proj"]
+        
+        peft_config = LoraConfig(
+            task_type=TaskType.CAUSAL_LM,
+            inference_mode=False,
+            r=args.lora_r,
+            lora_alpha=args.lora_alpha,
+            lora_dropout=args.lora_dropout,
+            bias=args.lora_bias,
+            target_modules=target_modules,
+            # IMPORTANT: If training special tokens, we might need to train embeddings, 
+            # but usually for projector-based tasks, we rely on the projector.
+            # modules_to_save=["embed_tokens", "lm_head"] # Uncomment if strictly needed
+        )
+        
+        base_llm = get_peft_model(base_llm, peft_config)
+        base_llm.print_trainable_parameters()
+    else:
+        print("PEFT disabled. Training full model (or manual freeze).")
+
     model = MolecularCaptioningModel(
         graph_encoder=graph_encoder,
         llm_model=base_llm,
@@ -98,7 +130,9 @@ if __name__ == "__main__":
     print(f"Loading checkpoint from: {args.load_checkpoint_path}")
     ckpt = torch.load(args.load_checkpoint_path, map_location="cuda")
     model.graph_encoder.load_state_dict(ckpt["graph_encoder"])
-    model.node_projector.load_state_dict(ckpt["node_projector"])
+
+    # SKIP THIS WHEN USING A BIG MODEL
+    # model.node_projector.load_state_dict(ckpt["node_projector"])
 
     # Freeze graph encoder
     for param in model.graph_encoder.parameters():
@@ -160,3 +194,15 @@ if __name__ == "__main__":
         save_model_checkpoint(model, epoch_path)
 
     print("Training complete.")
+
+'''
+python /home/shishirk/adityasr/kshitij_molecular_captioning/clean_code/train_llama.py \
+    --graphs_path "/home/shishirk/adityasr/kshitij_molecular_captioning/data_baseline/data" \
+    --load_checkpoint_path "/home/shishirk/adityasr/kshitij_molecular_captioning/nemanja_saved_model/contrast_mix_24.pth" \
+    --llm_model_id "meta-llama/Llama-3-8B-Instruct" \
+    --use_peft \
+    --lora_r 16 \
+    --lora_alpha 32 \
+    --batch_size 2 \
+    --llm_lr 2e-4
+'''

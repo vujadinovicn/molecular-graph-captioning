@@ -10,6 +10,7 @@ from models.model import MolecularCaptioningModel
 from models.graph_encoder import GINEEncoder
 from data.utils import get_num_embeddings_list
 from models.utils import load_model_checkpoint
+from peft import get_peft_model, LoraConfig, TaskType
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Molecular Captioning Inference Script")
@@ -34,6 +35,13 @@ def parse_args():
     parser.add_argument("--split", type=str, default="test", help="Dataset split to evaluate")
     parser.add_argument("--batch_size", type=int, default=4, help="Batch size for inference")
     parser.add_argument("--hidden_dim", type=int, default=512, help="Hidden dimension for Graph Encoder")
+
+    # --- PEFT Config (Must match training!) ---
+    parser.add_argument("--use_peft", action="store_true", help="Enable PEFT mode")
+    parser.add_argument("--lora_r", type=int, default=16, help="LoRA rank")
+    parser.add_argument("--lora_alpha", type=int, default=32, help="LoRA alpha")
+    parser.add_argument("--lora_dropout", type=float, default=0.05, help="LoRA dropout")
+    parser.add_argument("--out_dim_graph", type=int, default=256, help="Output dimension of the graph encoder")
 
     return parser.parse_args()
 
@@ -100,15 +108,15 @@ def generate_caption(model, tokenizer, graph_batch, device):
     # --- HARDCODED GENERATION PARAMETERS ---
     gen_kwargs = dict(
         do_sample=False,
-        num_beams=8,                  
-        num_beam_groups=4,            
-        diversity_penalty=0.3,        
-        num_return_sequences=1,       
-        length_penalty=1.15,          
-        early_stopping=False,          
+        # num_beams=2,                  
+        # num_beam_groups=2,            
+        # diversity_penalty=0.3,        
+        # num_return_sequences=1,       
+        # length_penalty=1.15,          
+        # early_stopping=False,          
         min_new_tokens=10,            
         max_new_tokens=192,             
-        repetition_penalty=1.08,       
+        # repetition_penalty=1.08,       
         eos_token_id=tokenizer.eos_token_id,
         pad_token_id=tokenizer.eos_token_id,
         use_cache=True,
@@ -154,6 +162,22 @@ def main():
     )
     base_llm.resize_token_embeddings(len(tokenizer))
 
+    if args.use_peft:
+        print(f"Applying LoRA Config (r={args.lora_r}, alpha={args.lora_alpha})...")
+        # target_modules = ["q_proj", "k_proj", "v_proj"]
+        target_modules = ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
+        
+        peft_config = LoraConfig(
+            task_type=TaskType.CAUSAL_LM,
+            inference_mode=True,
+            r=args.lora_r,
+            lora_alpha=args.lora_alpha,
+            lora_dropout=args.lora_dropout,
+            target_modules=target_modules
+        )
+        base_llm = get_peft_model(base_llm, peft_config)
+        print("Base LLM wrapped in PEFT adapter.")
+
     model = MolecularCaptioningModel(
         graph_encoder=graph_encoder,
         llm_model=base_llm,
@@ -161,15 +185,38 @@ def main():
         node_dim=args.hidden_dim,
     )
 
-    # 3. Load Checkpoints
-    # Load Main Model
-    model = load_model_checkpoint(model, args.main_ckpt_path)
+    # # 3. Load Checkpoints
+    # # Load Main Model
+    # model = load_model_checkpoint(model, args.main_ckpt_path)
     
-    # Load Graph Encoder specific checkpoint
-    print(f"Loading graph encoder state from {args.graph_ckpt_path}")
-    # Note: Loading with map_location to ensure it goes to the right device if needed
-    ckpt = torch.load(args.graph_ckpt_path, map_location=device)
-    model.graph_encoder.load_state_dict(ckpt["graph_encoder"])
+    # # Load Graph Encoder specific checkpoint
+    # print(f"Loading graph encoder state from {args.graph_ckpt_path}")
+    # # Note: Loading with map_location to ensure it goes to the right device if needed
+    # ckpt = torch.load(args.graph_ckpt_path, map_location=device)
+    # model.graph_encoder.load_state_dict(ckpt["graph_encoder"])
+
+    if args.graph_ckpt_path != "":
+        print(f"Loading Graph Encoder from: {args.graph_ckpt_path}")
+        graph_ckpt = torch.load(args.graph_ckpt_path, map_location=device)
+        if "graph_encoder" in graph_ckpt:
+            model.graph_encoder.load_state_dict(graph_ckpt["graph_encoder"])
+        else:
+            print("Warning: 'graph_encoder' key not found in graph checkpoint. Attempting to load entire checkpoint into graph encoder.")
+            model.graph_encoder.load_state_dict(graph_ckpt, strict=False)
+
+    # B. Load Projector + LoRA Adapters
+    print(f"Loading LoRA+Projector from: {args.main_ckpt_path}")
+    main_ckpt = torch.load(args.main_ckpt_path, map_location=device)
+    
+    # We use strict=False because main_ckpt ONLY contains trainable params 
+    # (Projector + LoRA adapters), but the 'model' object contains EVERYTHING (including frozen LLM weights).
+    # strict=False allows loading the small subset of trained weights into the massive model.
+    missing_keys, unexpected_keys = model.load_state_dict(main_ckpt, strict=False)
+    
+    print(f"Weights loaded. Missing keys (expected for frozen layers): {len(missing_keys)}")
+    print(f"Unexpected keys (should be 0): {len(unexpected_keys)}")
+    if len(unexpected_keys) > 0:
+        print("WARNING: Unexpected keys found in checkpoint:", unexpected_keys[:5])
 
     model.to(device)
     model.eval()
@@ -257,4 +304,14 @@ python /home/shishirk/adityasr/kshitij_molecular_captioning/molecular-graph-capt
   --graph_ckpt_path "/home/shishirk/adityasr/kshitij_molecular_captioning/nemanja_saved_model/contrast_mix_24.pth" \
   --data_path "/home/shishirk/adityasr/kshitij_molecular_captioning/data_baseline/data" \
   --output_file "results.json"
+
+python /home/shishirk/adityasr/kshitij_molecular_captioning/molecular-graph-captioning/generate_captions.py \
+  --main_ckpt_path "/home/shishirk/adityasr/kshitij_molecular_captioning/checkpoints/ft_freeze_graph_llama_1B_epoch_4.pth" \
+  --graph_ckpt_path "/home/shishirk/adityasr/kshitij_molecular_captioning/nemanja_saved_model/contrast_mix_24.pth" \
+  --data_path "/home/shishirk/adityasr/kshitij_molecular_captioning/data_baseline/data" \
+  --llm_model_id "meta-llama/Meta-Llama-3-8B-Instruct" \
+  --use_peft \
+  --lora_r 16 \
+  --lora_alpha 32 \
+  --output_file "results_peft.json"
 '''
