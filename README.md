@@ -2,6 +2,9 @@
 
 This repository contains the code for the Molecular Graph Captioning competition entry by the LELEM team. The competition was hosted as a part of the ALTEGRAD 2025 class at MVA, ENS Paris-Saclay.
 
+## Paper
+You can check our paper report [here](https://github.com/vujadinovicn/molecular-graph-captioning/tree/main/docs).
+
 ## Getting started
 You can create a virtual environment and install the required dependencies:
 
